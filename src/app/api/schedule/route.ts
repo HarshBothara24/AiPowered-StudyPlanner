@@ -1,101 +1,81 @@
 import { NextResponse } from "next/server"
-import { getAuth } from "firebase/auth"
-import { db } from "@/lib/firebase"
-import { collection, query, where, getDocs, Timestamp, doc, setDoc } from "firebase/firestore"
+import { auth, db } from "@/lib/firebase-admin"
 import { generateStudySchedule } from "@/lib/gemini"
 
 export async function POST(request: Request) {
   try {
-    const auth = getAuth()
-    const user = auth.currentUser
-
-    if (!user) {
+    // Verify authentication
+    const authHeader = request.headers.get("Authorization")
+    if (!authHeader?.startsWith("Bearer ")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { subjects, duration, startDate, endDate } = await request.json()
+    const idToken = authHeader.split("Bearer ")[1]
+    const decodedToken = await auth.verifyIdToken(idToken)
+    const userId = decodedToken.uid
 
-    // Get user's existing study sessions
-    const sessionsRef = collection(db, "studySessions")
-    const q = query(
-      sessionsRef,
-      where("userId", "==", user.uid),
-      where("startTime", ">=", Timestamp.fromDate(new Date(startDate))),
-      where("startTime", "<=", Timestamp.fromDate(new Date(endDate)))
-    )
-    const querySnapshot = await getDocs(q)
-    const existingSessions = querySnapshot.docs.map(doc => doc.data())
+    // Parse request body
+    const body = await request.json()
+    const { subjects, duration, startDate, endDate, preferences } = body
 
-    // Get user's preferences
-    const userRef = collection(db, "users")
-    const userDoc = await getDocs(query(userRef, where("id", "==", user.uid)))
-    const userData = userDoc.docs[0]?.data()
-    const preferences = userData?.preferences || {}
+    if (!subjects || !duration || !startDate || !endDate) {
+      return NextResponse.json(
+        { error: "Missing required fields" },
+        { status: 400 }
+      )
+    }
 
-    // Generate schedule using Gemini AI
-    const schedule = await generateStudySchedule(
+    // Get existing study sessions
+    const existingSessionsSnapshot = await db
+      .collection("studySessions")
+      .where("userId", "==", userId)
+      .where("date", ">=", startDate)
+      .where("date", "<=", endDate)
+      .get()
+
+    const existingSessions = existingSessionsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }))
+
+    // Get user preferences
+    const userPrefsDoc = await db.collection("userPreferences").doc(userId).get()
+    const userPreferences = userPrefsDoc.exists ? userPrefsDoc.data() : {}
+
+    // Generate schedule using Gemini
+    const generatedSchedule = await generateStudySchedule(
       subjects,
       duration,
       startDate,
       endDate,
       existingSessions,
-      preferences
+      { ...userPreferences, ...preferences }
     )
 
-    // Create a new schedule document
-    const scheduleRef = doc(collection(db, "schedules"))
-    const scheduleData = {
-      id: scheduleRef.id,
-      userId: user.uid,
-      subjects,
-      duration,
-      startDate: Timestamp.fromDate(new Date(startDate)),
-      endDate: Timestamp.fromDate(new Date(endDate)),
-      preferences,
-      createdAt: Timestamp.now(),
-      status: "active"
-    }
-
-    // Save the schedule document
-    await setDoc(scheduleRef, scheduleData)
-
-    // Convert the schedule to the required format and create study sessions
-    const studySessions = []
-    for (const day of schedule.schedule) {
-      for (const session of day.sessions) {
-        const startTime = new Date(`${day.date}T${session.startTime}`)
-        const endTime = new Date(`${day.date}T${session.endTime}`)
-        
-        const sessionData = {
-          userId: user.uid,
-          scheduleId: scheduleRef.id,
+    // Save the schedule directly to the user's document in the schedules collection
+    const scheduleRef = db.collection("schedules").doc(userId)
+    await scheduleRef.set({
+      userId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      schedule: generatedSchedule.schedule.map(day => ({
+        date: day.date,
+        sessions: day.sessions.map(session => ({
           subject: session.subject,
+          topic: session.topic || "General Study",
+          startTime: session.startTime,
+          endTime: session.endTime,
           duration: session.duration,
-          startTime: Timestamp.fromDate(startTime),
-          endTime: Timestamp.fromDate(endTime),
-          completed: false,
-          notes: session.notes,
-          achievements: []
-        }
+          notes: session.notes || `Study session for ${session.subject}`
+        }))
+      }))
+    })
 
-        // Create a new session document
-        const sessionRef = doc(collection(db, "studySessions"))
-        await setDoc(sessionRef, { ...sessionData, id: sessionRef.id })
-        
-        studySessions.push({ ...sessionData, id: sessionRef.id })
-      }
-    }
-
-    // Update the schedule document with the session IDs
-    await setDoc(scheduleRef, {
-      ...scheduleData,
-      sessionIds: studySessions.map(session => session.id)
-    }, { merge: true })
-
-    return NextResponse.json({ 
+    return NextResponse.json({
+      success: true,
       schedule: {
-        id: scheduleRef.id,
-        sessions: studySessions
+        id: userId,
+        schedule: generatedSchedule.schedule
       }
     })
   } catch (error) {

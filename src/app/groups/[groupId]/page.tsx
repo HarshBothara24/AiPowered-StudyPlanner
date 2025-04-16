@@ -25,6 +25,7 @@ interface StudyGroup {
     day: string
     time: string
     duration: number
+    description: string
   }[]
   chat: {
     userId: string
@@ -69,21 +70,30 @@ interface Meeting {
   time: string
   duration: number
   meetLink: string
-  calendarEventId?: string
-  createdBy: string
-  createdAt: Timestamp
+  isPast?: boolean
 }
 
-function GroupDetailsPage() {
-  const { groupId } = useParams()
+export default function GroupPage({ params }: { params: { groupId: string } }) {
+  const { groupId } = params
   const [group, setGroup] = useState<StudyGroup | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  const [error, setError] = useState<string | null>(null)
   const { user } = useAuth()
   const [isManageOpen, setIsManageOpen] = useState(false)
-  const [newSchedule, setNewSchedule] = useState({ day: "", time: "", duration: 1 })
+  const [newSchedule, setNewSchedule] = useState({ 
+    day: "", 
+    time: "", 
+    duration: 1,
+    description: "" 
+  })
   const [newResource, setNewResource] = useState({ name: "", url: "", description: "" })
-  const [newMeeting, setNewMeeting] = useState({ title: "", date: "", time: "", duration: 1 })
+  const [showNewMeetingDialog, setShowNewMeetingDialog] = useState(false)
+  const [newMeeting, setNewMeeting] = useState({
+    title: '',
+    date: '',
+    time: '',
+    duration: 1
+  })
   const [isCreatingMeeting, setIsCreatingMeeting] = useState(false)
 
   useEffect(() => {
@@ -117,7 +127,7 @@ function GroupDetailsPage() {
           createdBy: user.uid
         })
       })
-      setNewSchedule({ day: "", time: "", duration: 1 })
+      setNewSchedule({ day: "", time: "", duration: 1, description: "" })
     } catch (error) {
       console.error("Error adding schedule:", error)
     }
@@ -146,19 +156,11 @@ function GroupDetailsPage() {
     if (!group || !user) return
     setIsCreatingMeeting(true)
     try {
-<<<<<<< HEAD
-      // Get the Firebase ID token
-      const idToken = await user.getIdToken()
-
-=======
->>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
       // Convert date and time to ISO string
       const startDateTime = new Date(`${newMeeting.date}T${newMeeting.time}`)
       const endDateTime = new Date(startDateTime)
       endDateTime.setHours(startDateTime.getHours() + newMeeting.duration)
 
-<<<<<<< HEAD
-=======
       console.log('Creating meeting with data:', {
         groupId,
         title: newMeeting.title,
@@ -168,7 +170,6 @@ function GroupDetailsPage() {
         attendees: group.members
       })
 
->>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
       // Create Google Calendar event with Meet link
       const response = await fetch("/api/meetings/create", {
         method: "POST",
@@ -176,11 +177,7 @@ function GroupDetailsPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-<<<<<<< HEAD
-          idToken,
-=======
           groupId,
->>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
           title: newMeeting.title,
           description: `Study group meeting for ${group.name}`,
           startTime: startDateTime.toISOString(),
@@ -190,20 +187,14 @@ function GroupDetailsPage() {
       })
 
       const responseData = await response.json()
-<<<<<<< HEAD
-=======
       console.log('Meeting creation response:', responseData)
->>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
 
       if (!response.ok) {
         throw new Error(responseData.error || "Failed to create meeting")
       }
 
-<<<<<<< HEAD
-=======
       const { meetLink, eventId } = responseData
 
->>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
       // Format meeting data for Firestore
       const meetingData = {
         id: Math.random().toString(36).substr(2, 9),
@@ -211,13 +202,8 @@ function GroupDetailsPage() {
         date: newMeeting.date,
         time: newMeeting.time,
         duration: newMeeting.duration,
-<<<<<<< HEAD
-        meetLink: responseData.meetLink,
-        calendarEventId: responseData.eventId,
-=======
         meetLink: meetLink || '',
         calendarEventId: eventId || '',
->>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
         createdBy: user.uid,
         createdAt: Timestamp.now()
       }
@@ -236,6 +222,18 @@ function GroupDetailsPage() {
       setIsCreatingMeeting(false)
     }
   }
+
+  // Process meetings to categorize them
+  const meetings = group?.meetings?.map(meeting => {
+    const meetingDateTime = new Date(`${meeting.date}T${meeting.time}`)
+    return {
+      ...meeting,
+      isPast: meetingDateTime < new Date()
+    }
+  }) || []
+
+  const upcomingMeetings = meetings.filter(meeting => !meeting.isPast)
+  const pastMeetings = meetings.filter(meeting => meeting.isPast)
 
   if (loading) {
     return <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -273,163 +271,15 @@ function GroupDetailsPage() {
                       <DialogHeader>
                         <DialogTitle>Manage Group</DialogTitle>
                       </DialogHeader>
-                      <Tabs defaultValue="schedule" className="w-full">
-                        <TabsList className="grid w-full grid-cols-3">
-                          <TabsTrigger value="schedule">Schedule</TabsTrigger>
-                          <TabsTrigger value="resources">Resources</TabsTrigger>
-                          <TabsTrigger value="meetings">Meetings</TabsTrigger>
+                      <Tabs defaultValue="settings" className="w-full">
+                        <TabsList className="grid w-full grid-cols-1">
+                          <TabsTrigger value="settings">Group Settings</TabsTrigger>
                         </TabsList>
-                        <TabsContent value="schedule" className="space-y-4">
-                          <h3 className="text-lg font-medium">Add Study Schedule</h3>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <Label htmlFor="day">Day</Label>
-                              <Input
-                                id="day"
-                                value={newSchedule.day}
-                                onChange={(e) => setNewSchedule({ ...newSchedule, day: e.target.value })}
-                                placeholder="e.g. Monday"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="time">Time</Label>
-                              <Input
-                                id="time"
-                                value={newSchedule.time}
-                                onChange={(e) => setNewSchedule({ ...newSchedule, time: e.target.value })}
-                                placeholder="e.g. 14:00"
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <Label htmlFor="duration">Duration (hours)</Label>
-                            <Input
-                              id="duration"
-                              type="number"
-                              value={newSchedule.duration}
-                              onChange={(e) => setNewSchedule({ ...newSchedule, duration: Number(e.target.value) })}
-                              min={1}
-                            />
-                          </div>
-                          <Button onClick={handleAddSchedule}>Add Schedule</Button>
-                        </TabsContent>
-                        <TabsContent value="resources" className="space-y-4">
-                          <h3 className="text-lg font-medium">Add Resource</h3>
-                          <div>
-                            <Label htmlFor="resourceName">Name</Label>
-                            <Input
-                              id="resourceName"
-                              value={newResource.name}
-                              onChange={(e) => setNewResource({ ...newResource, name: e.target.value })}
-                              placeholder="Resource name"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="resourceUrl">URL</Label>
-                            <Input
-                              id="resourceUrl"
-                              value={newResource.url}
-                              onChange={(e) => setNewResource({ ...newResource, url: e.target.value })}
-                              placeholder="https://..."
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="resourceDescription">Description</Label>
-                            <Textarea
-                              id="resourceDescription"
-                              value={newResource.description}
-                              onChange={(e) => setNewResource({ ...newResource, description: e.target.value })}
-                              placeholder="Brief description of the resource"
-                            />
-                          </div>
-                          <Button onClick={handleAddResource}>Add Resource</Button>
-                        </TabsContent>
-                        <TabsContent value="meetings" className="space-y-4">
+                        <TabsContent value="settings" className="space-y-4">
+                          {/* Group settings form */}
                           <div className="space-y-4">
-                            <h3 className="text-lg font-medium">Schedule Group Meeting</h3>
-                            <div className="grid gap-4">
-                              <div>
-                                <Label htmlFor="meetingTitle">Meeting Title</Label>
-                                <Input
-                                  id="meetingTitle"
-                                  value={newMeeting.title}
-                                  onChange={(e) => setNewMeeting({ ...newMeeting, title: e.target.value })}
-                                  placeholder="e.g. Project Discussion"
-                                />
-                              </div>
-                              <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                  <Label htmlFor="meetingDate">Date</Label>
-                                  <Input
-                                    id="meetingDate"
-                                    type="date"
-                                    value={newMeeting.date}
-                                    onChange={(e) => setNewMeeting({ ...newMeeting, date: e.target.value })}
-                                  />
-                                </div>
-                                <div>
-                                  <Label htmlFor="meetingTime">Time</Label>
-                                  <Input
-                                    id="meetingTime"
-                                    type="time"
-                                    value={newMeeting.time}
-                                    onChange={(e) => setNewMeeting({ ...newMeeting, time: e.target.value })}
-                                  />
-                                </div>
-                              </div>
-                              <div>
-                                <Label htmlFor="meetingDuration">Duration (hours)</Label>
-                                <Input
-                                  id="meetingDuration"
-                                  type="number"
-                                  value={newMeeting.duration}
-                                  onChange={(e) => setNewMeeting({ ...newMeeting, duration: Number(e.target.value) })}
-                                  min={1}
-                                />
-                              </div>
-                              <Button 
-                                onClick={handleCreateMeeting} 
-                                disabled={isCreatingMeeting}
-                                className="w-full"
-                              >
-                                <Video className="w-4 h-4 mr-2" />
-                                {isCreatingMeeting ? "Creating Meeting..." : "Create Meeting"}
-                              </Button>
-                            </div>
-
-                            {/* Upcoming Meetings */}
-                            {group?.meetings && group.meetings.length > 0 && (
-                              <div className="mt-6">
-                                <h4 className="text-sm font-medium mb-3">Upcoming Meetings</h4>
-                                <div className="space-y-3">
-                                  {group.meetings.map((meeting) => (
-                                    <div
-                                      key={meeting.id}
-                                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                                    >
-                                      <div>
-                                        <h5 className="font-medium">{meeting.title}</h5>
-                                        <div className="text-sm text-gray-500 flex items-center mt-1">
-                                          <Calendar className="w-4 h-4 mr-1" />
-                                          {meeting.date} at {meeting.time}
-                                          <Clock className="w-4 h-4 ml-2 mr-1" />
-                                          {meeting.duration}h
-                                        </div>
-                                      </div>
-                                      <a
-                                        href={meeting.meetLink}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-primary hover:underline flex items-center"
-                                      >
-                                        <Video className="w-4 h-4 mr-1" />
-                                        Join
-                                      </a>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+                            <h3 className="text-lg font-medium">Group Settings</h3>
+                            {/* Add group settings fields here */}
                           </div>
                         </TabsContent>
                       </Tabs>
@@ -464,7 +314,64 @@ function GroupDetailsPage() {
             <div className="space-y-6">
               {/* Schedule */}
               <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-                <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Study Schedule</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-medium text-gray-900 dark:text-white">Study Schedule</h2>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        Add Schedule
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px]">
+                      <DialogHeader>
+                        <DialogTitle>Add Study Schedule</DialogTitle>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="day">Day</Label>
+                            <Input
+                              id="day"
+                              value={newSchedule.day}
+                              onChange={(e) => setNewSchedule({ ...newSchedule, day: e.target.value })}
+                              placeholder="e.g. Monday"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="time">Time</Label>
+                            <Input
+                              id="time"
+                              value={newSchedule.time}
+                              onChange={(e) => setNewSchedule({ ...newSchedule, time: e.target.value })}
+                              placeholder="e.g. 14:00"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label htmlFor="duration">Duration (hours)</Label>
+                          <Input
+                            id="duration"
+                            type="number"
+                            value={newSchedule.duration}
+                            onChange={(e) => setNewSchedule({ ...newSchedule, duration: Number(e.target.value) })}
+                            min={1}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="scheduleDescription">Study Plan</Label>
+                          <Textarea
+                            id="scheduleDescription"
+                            value={newSchedule.description}
+                            onChange={(e) => setNewSchedule({ ...newSchedule, description: e.target.value })}
+                            placeholder="What topics will be covered? What are the learning objectives?"
+                            className="min-h-[100px]"
+                          />
+                        </div>
+                        <Button onClick={handleAddSchedule}>Add Schedule</Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
                 {group.schedule.length > 0 ? (
                   <div className="space-y-4">
                     {group.schedule.map((session, index) => (
@@ -473,6 +380,11 @@ function GroupDetailsPage() {
                         <div className="text-sm text-gray-600 dark:text-gray-300">
                           {session.time} ({session.duration} hours)
                         </div>
+                        {session.description && (
+                          <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                            {session.description}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -483,7 +395,51 @@ function GroupDetailsPage() {
 
               {/* Resources */}
               <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-                <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Resources</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-medium text-gray-900 dark:text-white">Resources</h2>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        Add Resource
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px]">
+                      <DialogHeader>
+                        <DialogTitle>Add Resource</DialogTitle>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                        <div>
+                          <Label htmlFor="resourceName">Name</Label>
+                          <Input
+                            id="resourceName"
+                            value={newResource.name}
+                            onChange={(e) => setNewResource({ ...newResource, name: e.target.value })}
+                            placeholder="Resource name"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="resourceUrl">URL</Label>
+                          <Input
+                            id="resourceUrl"
+                            value={newResource.url}
+                            onChange={(e) => setNewResource({ ...newResource, url: e.target.value })}
+                            placeholder="https://..."
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="resourceDescription">Description</Label>
+                          <Textarea
+                            id="resourceDescription"
+                            value={newResource.description}
+                            onChange={(e) => setNewResource({ ...newResource, description: e.target.value })}
+                            placeholder="Brief description of the resource"
+                          />
+                        </div>
+                        <Button onClick={handleAddResource}>Add Resource</Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
                 {group.resources.length > 0 ? (
                   <div className="space-y-4">
                     {group.resources.map((resource) => (
@@ -506,16 +462,27 @@ function GroupDetailsPage() {
                 )}
               </div>
 
-              {/* Meetings Section */}
-              <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-                <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Upcoming Meetings</h2>
-                {group?.meetings && group.meetings.length > 0 ? (
+              {/* Meetings */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">Meetings</h3>
+                  <Button onClick={() => setShowNewMeetingDialog(true)}>
+                    Schedule Meeting
+                  </Button>
+                </div>
+
+                {/* Upcoming Meetings */}
+                {upcomingMeetings.length > 0 && (
                   <div className="space-y-4">
-                    {group.meetings.map((meeting) => (
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">Upcoming</h4>
+                    {upcomingMeetings.map(meeting => (
                       <div key={meeting.id} className="border-l-4 border-primary pl-4">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">{meeting.title}</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-300">
-                          {meeting.date} at {meeting.time} ({meeting.duration}h)
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {meeting.title}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
+                          <Calendar className="w-4 h-4 mr-1" />
+                          {meeting.date} at {meeting.time}
                         </div>
                         <a
                           href={meeting.meetLink}
@@ -529,8 +496,31 @@ function GroupDetailsPage() {
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-600 dark:text-gray-300">No upcoming meetings</p>
+                )}
+
+                {/* Past Meetings */}
+                {pastMeetings.length > 0 && (
+                  <div className="space-y-4 mt-6">
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">Past Meetings</h4>
+                    {pastMeetings.map(meeting => (
+                      <div key={meeting.id} className="border-l-4 border-gray-300 dark:border-gray-600 pl-4">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {meeting.title}
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
+                          <Calendar className="w-4 h-4 mr-1" />
+                          {meeting.date} at {meeting.time}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Completed
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {meetings.length === 0 && (
+                  <p className="text-gray-600 dark:text-gray-300">No meetings scheduled yet.</p>
                 )}
               </div>
             </div>
@@ -539,6 +529,4 @@ function GroupDetailsPage() {
       </div>
     </div>
   )
-}
-
-export default GroupDetailsPage 
+} 
