@@ -25,7 +25,7 @@ interface ScheduleDay {
 
 interface Schedule {
   id: string
-  sessions: ScheduleDay[]
+  schedule: ScheduleDay[]
 }
 
 interface SubjectSyllabus {
@@ -126,6 +126,10 @@ export default function Schedule() {
       }
 
       const data = await response.json()
+      // Ensure the schedule data structure is correct
+      if (!data.schedule || !data.schedule.schedule) {
+        throw new Error("Invalid schedule data received")
+      }
       setSchedule(data.schedule)
     } catch (error) {
       console.error("Error generating schedule:", error)
@@ -296,11 +300,11 @@ export default function Schedule() {
               </div>
             )}
 
-            {schedule && schedule.sessions.length > 0 && (
+            {schedule && schedule.schedule && schedule.schedule.length > 0 && (
               <div className="mt-8">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Generated Schedule</h3>
                 <div className="space-y-8">
-                  {schedule.sessions.map((day, dayIndex) => (
+                  {schedule.schedule.map((day, dayIndex) => (
                     <div key={`${day.date}-${dayIndex}`} className="space-y-4">
                       <h4 className="text-md font-medium text-gray-700 dark:text-gray-300">
                         {new Date(day.date).toLocaleDateString(undefined, { 
@@ -310,6 +314,7 @@ export default function Schedule() {
                           day: 'numeric' 
                         })}
                       </h4>
+                      
                       {day.sessions && day.sessions.length > 0 ? (
                         <div className="space-y-4">
                           {day.sessions.map((session, sessionIndex) => (
@@ -339,13 +344,7 @@ export default function Schedule() {
                           ))}
                         </div>
                       ) : (
-                        <Card className="bg-gray-50 dark:bg-gray-800/50">
-                          <CardContent className="py-6">
-                            <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                              No study sessions scheduled for this day
-                            </p>
-                          </CardContent>
-                        </Card>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No sessions scheduled for this day</p>
                       )}
                     </div>
                   ))}

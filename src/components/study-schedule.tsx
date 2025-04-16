@@ -8,6 +8,8 @@ import { Clock, CheckCircle2, Calendar, Edit } from "lucide-react"
 import { db } from "@/lib/firebase"
 import { doc, updateDoc } from "firebase/firestore"
 import { useToast } from "@/components/ui/use-toast"
+import { updateUserProgress } from "@/lib/gamification"
+import { useAuth } from "@/contexts/auth-context"
 
 interface Session {
   subject: string
@@ -52,7 +54,9 @@ export function StudySchedule({ schedule, onScheduleUpdate }: StudyScheduleProps
     session: Session
   } | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
   const { toast } = useToast()
+  const { user } = useAuth()
 
   const handleUpdateSession = async () => {
     if (!editSession) return
@@ -96,10 +100,38 @@ export function StudySchedule({ schedule, onScheduleUpdate }: StudyScheduleProps
   }
 
   const handleMarkComplete = async (dayIndex: number, sessionIndex: number) => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to mark tasks as complete",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!schedule || !schedule.schedule || !schedule.schedule[dayIndex]?.sessions) {
+      toast({
+        title: "Error",
+        description: "Invalid schedule data",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
+      setLoading(true)
       const updatedSchedule = { ...schedule }
       const session = updatedSchedule.schedule[dayIndex].sessions[sessionIndex]
-      session.completed = !session.completed
+      
+      if (!session) {
+        throw new Error("Session not found")
+      }
+
+      const isCompleting = !session.completed
+      session.completed = isCompleting
+
+      // Generate a unique task ID if it doesn't exist
+      const taskId = `${schedule.id}-${dayIndex}-${sessionIndex}`
 
       // Update in Firestore
       const scheduleRef = doc(db, "schedules", schedule.id)
@@ -108,15 +140,34 @@ export function StudySchedule({ schedule, onScheduleUpdate }: StudyScheduleProps
         updatedAt: new Date().toISOString()
       })
 
+      // Update user progress if completing the task
+      if (isCompleting) {
+        const result = await updateUserProgress(user.uid, taskId)
+        
+        if (result.points > 0) {
+          toast({
+            title: "Task Completed!",
+            description: `You earned ${result.points} points!`,
+          })
+        }
+
+        if (result.badges.length > 0) {
+          result.badges.forEach(badge => {
+            toast({
+              title: "New Badge Unlocked!",
+              description: `${badge.name}: ${badge.description}`,
+            })
+          })
+        }
+      } else {
+        toast({
+          title: "Task Uncompleted",
+          description: "Task marked as not completed",
+        })
+      }
+
       // Update local state through parent component
       onScheduleUpdate?.(updatedSchedule)
-
-      toast({
-        title: session.completed ? "Task Completed!" : "Task Uncompleted",
-        description: session.completed 
-          ? "Great job! Keep up the good work!" 
-          : "Task marked as not completed",
-      })
     } catch (error) {
       console.error("Error marking session as complete:", error)
       toast({
@@ -124,6 +175,8 @@ export function StudySchedule({ schedule, onScheduleUpdate }: StudyScheduleProps
         description: "Failed to update task status",
         variant: "destructive",
       })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -226,13 +279,14 @@ export function StudySchedule({ schedule, onScheduleUpdate }: StudyScheduleProps
                           size="icon"
                           className="hover:bg-gray-700"
                           onClick={() => handleMarkComplete(dayIndex, sessionIndex)}
+                          disabled={loading}
                         >
                           <CheckCircle2 
                             className={`w-4 h-4 ${
                               session.completed 
                                 ? "text-green-500" 
                                 : "text-gray-400 hover:text-white"
-                            }`} 
+                            }`}
                           />
                         </Button>
                       </div>

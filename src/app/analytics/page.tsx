@@ -1,152 +1,377 @@
-import { Button } from "@/components/ui/button"
+"use client"
 
-export default function Analytics() {
+import { useState, useEffect } from "react"
+import { db } from "@/lib/firebase"
+import { collection, query, where, onSnapshot, doc, getDoc, Timestamp } from "firebase/firestore"
+import { useAuth } from "@/contexts/auth-context"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { startOfWeek, endOfWeek, format, eachDayOfInterval } from "date-fns"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Cell } from "recharts"
+
+interface StudySession {
+  id: string
+  subject: string
+  duration: number
+  completed: boolean
+  startTime: { seconds: number }
+  endTime: { seconds: number }
+}
+
+interface ScheduleSession {
+  subject: string
+  topic: string
+  startTime: string
+  endTime: string
+  duration: number
+  notes: string
+  completed?: boolean
+}
+
+interface ScheduleDay {
+  date: string
+  sessions: ScheduleSession[]
+}
+
+interface Schedule {
+  id: string
+  schedule: ScheduleDay[]
+  updatedAt: string
+}
+
+export default function AnalyticsPage() {
+  const [sessions, setSessions] = useState<StudySession[]>([])
+  const [scheduleData, setScheduleData] = useState<Schedule | null>(null)
+  const [loading, setLoading] = useState(true)
+  const { user } = useAuth()
+
+  useEffect(() => {
+    if (!user) return
+
+    // Listen to study sessions
+    const sessionsQuery = query(
+      collection(db, "studySessions"),
+      where("userId", "==", user.uid)
+    )
+
+    // Listen to schedule updates
+    const scheduleRef = doc(db, "schedules", user.uid)
+
+    const unsubscribeSessions = onSnapshot(sessionsQuery, (snapshot) => {
+      const sessionsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as StudySession[]
+      setSessions(sessionsData)
+    })
+
+    const unsubscribeSchedule = onSnapshot(scheduleRef, (doc) => {
+      if (doc.exists()) {
+        setScheduleData(doc.data() as Schedule)
+      }
+      setLoading(false)
+    })
+
+    return () => {
+      unsubscribeSessions()
+      unsubscribeSchedule()
+    }
+  }, [user])
+
+  // Calculate weekly data
+  const now = new Date()
+  const weekStart = startOfWeek(now)
+  const weekEnd = endOfWeek(now)
+  
+  // Combine data from both sources for weekly calculations
+  const weeklyStudyHours = [...sessions, ...(scheduleData?.schedule?.flatMap(day => 
+    day.sessions.filter(session => session.completed).map(session => ({
+      startTime: { seconds: new Date(`${day.date}T${session.startTime}`).getTime() / 1000 },
+      duration: session.duration
+    }))
+  ) || [])]
+    .filter(session => {
+      const sessionDate = new Date(session.startTime.seconds * 1000)
+      return sessionDate >= weekStart && sessionDate <= weekEnd
+    })
+    .reduce((total, session) => total + session.duration, 0) / 60
+
+  // Calculate weekly progress (assuming 20 hours per week goal)
+  const weeklyGoal = 20 // 20 hours per week
+  const weeklyProgress = Math.min((weeklyStudyHours / weeklyGoal) * 100, 100)
+
+  // Calculate most productive time combining both data sources
+  const timeSlots = [...sessions, ...(scheduleData?.schedule?.flatMap(day => 
+    day.sessions.filter(session => session.completed).map(session => ({
+      startTime: { seconds: new Date(`${day.date}T${session.startTime}`).getTime() / 1000 },
+      duration: session.duration
+    }))
+  ) || [])]
+    .reduce((acc, session) => {
+      const startHour = new Date(session.startTime.seconds * 1000).getHours()
+      acc[startHour] = (acc[startHour] || 0) + session.duration
+      return acc
+    }, {} as Record<number, number>)
+
+  const mostProductiveHour = Object.entries(timeSlots).reduce((a, b) => 
+    timeSlots[Number(a[0])] > timeSlots[Number(b[0])] ? a : b
+  , ['0', 0])[0]
+
+  const formatHour = (hour: string) => {
+    const hourNum = parseInt(hour)
+    return format(new Date().setHours(hourNum, 0, 0, 0), 'h:00 a')
+  }
+
+  // Enhanced subject data preparation combining both sources
+  const subjectData = Object.entries([...sessions, ...(scheduleData?.schedule?.flatMap(day => 
+    day.sessions.filter(session => session.completed).map(session => ({
+      subject: session.subject,
+      duration: session.duration
+    }))
+  ) || [])]
+    .reduce((acc, session) => {
+      const subject = session.subject
+      acc[subject] = (acc[subject] || 0) + session.duration
+      return acc
+    }, {} as Record<string, number>))
+    .map(([subject, duration]) => ({
+      subject,
+      hours: Math.round(duration / 60 * 10) / 10
+    }))
+
+  // Use empty array instead of hardcoded sample data
+  const displayData = subjectData.length > 0 ? subjectData : []
+
+  // Prepare weekly data combining both sources
+  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
+  const weeklyData = weekDays.map(day => {
+    const formattedDate = format(day, 'yyyy-MM-dd')
+    
+    // Get study hours from regular sessions
+    const regularSessionHours = sessions
+      .filter(session => {
+        const sessionDate = new Date(session.startTime.seconds * 1000)
+        return sessionDate.toDateString() === day.toDateString()
+      })
+      .reduce((total, session) => total + session.duration, 0)
+
+    // Get study hours from completed schedule sessions
+    const scheduleSessionHours = scheduleData?.schedule
+      ?.find(scheduleDay => scheduleDay.date === formattedDate)
+      ?.sessions
+      .filter(session => session.completed)
+      .reduce((total, session) => total + session.duration, 0) || 0
+
+    // Combine both sources
+    const totalHours = (regularSessionHours + scheduleSessionHours) / 60
+
+    return {
+      day: format(day, 'EEE'),
+      hours: Math.round(totalHours * 10) / 10
+    }
+  })
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {/* Weekly Progress Card */}
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
-                        Weekly Progress
-                      </dt>
-                      <dd className="flex items-baseline">
-                        <div className="text-2xl font-semibold text-gray-900">
-                          75%
-                        </div>
-                      </dd>
-                    </dl>
-                  </div>
-                </div>
+    <div className="min-h-screen bg-gray-900 text-white">
+      <div className="container mx-auto py-6 space-y-8">
+        <h1 className="text-4xl font-bold mb-8 text-white">Analytics</h1>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="bg-gray-800/50 border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-gray-200">Weekly Progress</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold mb-2 text-white">{Math.round(weeklyProgress)}%</div>
+              <div className="h-2 bg-gray-700 rounded-full">
+                <div 
+                  className="h-2 bg-blue-500 rounded-full transition-all" 
+                  style={{ width: `${weeklyProgress}%` }}
+                />
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-            {/* Study Hours Card */}
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
-                        Study Hours This Week
-                      </dt>
-                      <dd className="flex items-baseline">
-                        <div className="text-2xl font-semibold text-gray-900">
-                          15.5
-                        </div>
-                      </dd>
-                    </dl>
-                  </div>
-                </div>
+          <Card className="bg-gray-800/50 border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-gray-200">Study Hours This Week</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold text-white">
+                {weeklyStudyHours.toFixed(1)} hours
               </div>
-            </div>
+            </CardContent>
+          </Card>
 
-            {/* Most Productive Time Card */}
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
-                        Most Productive Time
-                      </dt>
-                      <dd className="flex items-baseline">
-                        <div className="text-2xl font-semibold text-gray-900">
-                          9 AM - 11 AM
-                        </div>
-                      </dd>
-                    </dl>
-                  </div>
-                </div>
+          <Card className="bg-gray-800/50 border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-gray-200">Most Productive Time</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold text-white">
+                {Object.keys(timeSlots).length > 0 
+                  ? formatHour(mostProductiveHour)
+                  : "No data available"}
               </div>
-            </div>
-          </div>
-
-          {/* Detailed Analytics Section */}
-          <div className="mt-8">
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-2xl font-bold mb-6">Detailed Analytics</h2>
-              
-              <div className="space-y-6">
-                {/* Subject-wise Progress */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Subject-wise Progress</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>Mathematics</span>
-                        <span>80%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div className="bg-primary h-2.5 rounded-full" style={{ width: "80%" }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>Physics</span>
-                        <span>65%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div className="bg-primary h-2.5 rounded-full" style={{ width: "65%" }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>Chemistry</span>
-                        <span>90%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
-                        <div className="bg-primary h-2.5 rounded-full" style={{ width: "90%" }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Study Pattern */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">Study Pattern</h3>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <p className="text-gray-600">
-                      You are most productive in the morning (9 AM - 11 AM) and tend to study for longer periods on weekends.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Recommendations */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-4">AI Recommendations</h3>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <ul className="list-disc list-inside text-gray-600 space-y-2">
-                      <li>Consider starting your study sessions 30 minutes earlier to maximize morning productivity</li>
-                      <li>Try breaking down your study sessions into 45-minute blocks with 15-minute breaks</li>
-                      <li>Focus more on Physics as it has the lowest completion rate</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
+
+        <Tabs defaultValue="subjects" className="space-y-4">
+          <TabsList className="bg-gray-800/50 border-0">
+            <TabsTrigger value="subjects" className="data-[state=active]:bg-gray-700">Subjects</TabsTrigger>
+            <TabsTrigger value="study-patterns" className="data-[state=active]:bg-gray-700">Study Patterns</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="subjects" className="space-y-4">
+            <Card className="bg-gray-800/50 border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-gray-200">Subject Performance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="h-[300px] flex items-center justify-center">
+                    <div className="text-gray-400">Loading data...</div>
+                  </div>
+                ) : displayData.length > 0 ? (
+                  <>
+                    <div className="h-[300px] mt-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={displayData}>
+                          <CartesianGrid 
+                            strokeDasharray="3 3" 
+                            stroke="rgba(255,255,255,0.1)"
+                            vertical={false}
+                          />
+                          <XAxis 
+                            dataKey="subject" 
+                            stroke="#94a3b8"
+                            tick={{ fill: '#94a3b8' }}
+                            axisLine={{ stroke: '#334155' }}
+                          />
+                          <YAxis 
+                            stroke="#94a3b8"
+                            tick={{ fill: '#94a3b8' }}
+                            axisLine={{ stroke: '#334155' }}
+                            label={{ 
+                              value: 'Hours', 
+                              angle: -90, 
+                              position: 'insideLeft',
+                              fill: '#94a3b8'
+                            }}
+                          />
+                          <Tooltip 
+                            cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                            contentStyle={{ 
+                              backgroundColor: '#1f2937',
+                              border: '1px solid rgba(255,255,255,0.1)',
+                              color: '#fff',
+                              borderRadius: '6px',
+                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                            }}
+                          />
+                          <Bar 
+                            dataKey="hours" 
+                            fill="#3b82f6"
+                            radius={[4, 4, 0, 0]}
+                            maxBarSize={60}
+                          >
+                            {displayData.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`}
+                                fill={entry.hours === 0 ? '#1e40af' : '#3b82f6'}
+                                fillOpacity={entry.hours === 0 ? 0.3 : 0.8}
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="space-y-2 mt-4">
+                      {displayData.map(({ subject, hours }) => (
+                        <div key={subject} className="flex items-center justify-between text-gray-200">
+                          <span className="font-medium">{subject}</span>
+                          <span>{hours} hours</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="h-[300px] flex flex-col items-center justify-center text-center">
+                    <div className="text-gray-400 mb-2">No study sessions recorded yet</div>
+                    <div className="text-sm text-gray-500">Complete study sessions to see your progress</div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="study-patterns" className="space-y-4">
+            <Card className="bg-gray-800/50 border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-gray-200">Weekly Study Pattern</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px] mt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={weeklyData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="day" stroke="#94a3b8" />
+                      <YAxis label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} stroke="#94a3b8" />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#1f2937',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#fff'
+                        }}
+                      />
+                      <Line type="monotone" dataKey="hours" stroke="#3b82f6" strokeWidth={2} dot={{ fill: '#3b82f6' }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gray-800/50 border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-gray-200">Study Time Distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px] mt-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={Object.entries(timeSlots).map(([hour, duration]) => ({
+                      time: formatHour(hour),
+                      hours: Math.round(duration / 60 * 10) / 10
+                    }))}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="time" stroke="#94a3b8" />
+                      <YAxis label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} stroke="#94a3b8" />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: '#1f2937',
+                          border: '1px solid rgba(255,255,255,0.1)',
+                          color: '#fff'
+                        }}
+                      />
+                      <Bar dataKey="hours" fill="#10b981" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="space-y-2 mt-4">
+                  {Object.entries(timeSlots)
+                    .sort(([a], [b]) => parseInt(a) - parseInt(b))
+                    .map(([hour, duration]) => (
+                      <div key={hour} className="flex items-center justify-between text-gray-200">
+                        <span className="font-medium">{formatHour(hour)}</span>
+                        <span>{Math.round(duration / 60 * 10) / 10} hours</span>
+                      </div>
+                    ))
+                  }
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )
