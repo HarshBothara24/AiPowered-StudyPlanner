@@ -9,7 +9,10 @@
     "lint": "next lint"
   },
   "dependencies": {
+<<<<<<< HEAD
     "@auth/firebase-adapter": "^2.8.0",
+=======
+>>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
     "@google/generative-ai": "^0.24.0",
     "@heroicons/react": "^2.2.0",
     "@radix-ui/react-dialog": "^1.1.7",
@@ -27,7 +30,10 @@
     "mongodb": "^6.15.0",
     "mongoose": "^8.13.2",
     "next": "15.3.0",
+<<<<<<< HEAD
     "next-auth": "^4.24.11",
+=======
+>>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "shadcn-ui": "^0.9.5",

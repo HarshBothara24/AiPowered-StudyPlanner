@@ -146,14 +146,29 @@ function GroupDetailsPage() {
     if (!group || !user) return
     setIsCreatingMeeting(true)
     try {
+<<<<<<< HEAD
       // Get the Firebase ID token
       const idToken = await user.getIdToken()
 
+=======
+>>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
       // Convert date and time to ISO string
       const startDateTime = new Date(`${newMeeting.date}T${newMeeting.time}`)
       const endDateTime = new Date(startDateTime)
       endDateTime.setHours(startDateTime.getHours() + newMeeting.duration)
 
+<<<<<<< HEAD
+=======
+      console.log('Creating meeting with data:', {
+        groupId,
+        title: newMeeting.title,
+        description: `Study group meeting for ${group.name}`,
+        startTime: startDateTime.toISOString(),
+        endTime: endDateTime.toISOString(),
+        attendees: group.members
+      })
+
+>>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
       // Create Google Calendar event with Meet link
       const response = await fetch("/api/meetings/create", {
         method: "POST",
@@ -161,7 +176,11 @@ function GroupDetailsPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+<<<<<<< HEAD
           idToken,
+=======
+          groupId,
+>>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
           title: newMeeting.title,
           description: `Study group meeting for ${group.name}`,
           startTime: startDateTime.toISOString(),
@@ -171,11 +190,20 @@ function GroupDetailsPage() {
       })
 
       const responseData = await response.json()
+<<<<<<< HEAD
+=======
+      console.log('Meeting creation response:', responseData)
+>>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
 
       if (!response.ok) {
         throw new Error(responseData.error || "Failed to create meeting")
       }
 
+<<<<<<< HEAD
+=======
+      const { meetLink, eventId } = responseData
+
+>>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
       // Format meeting data for Firestore
       const meetingData = {
         id: Math.random().toString(36).substr(2, 9),
@@ -183,8 +211,13 @@ function GroupDetailsPage() {
         date: newMeeting.date,
         time: newMeeting.time,
         duration: newMeeting.duration,
+<<<<<<< HEAD
         meetLink: responseData.meetLink,
         calendarEventId: responseData.eventId,
+=======
+        meetLink: meetLink || '',
+        calendarEventId: eventId || '',
+>>>>>>> e4d9b341bc289a98c72aa2db8a374d5525991c03
         createdBy: user.uid,
         createdAt: Timestamp.now()
       }
