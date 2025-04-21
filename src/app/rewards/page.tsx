@@ -10,28 +10,43 @@ import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Trophy, Crown, Star, Target, Medal } from "lucide-react"
 import { getAvailableBadges } from "@/lib/gamification"
-import type { Badge } from "@/lib/gamification"
+
+// Define the requirement types
+type RequirementType = "points" | "streak" | "tasks";
+
+interface Requirement {
+  type: RequirementType;
+  value: number;
+}
+
+interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  requirement: Requirement;
+}
 
 interface UserStats {
-  totalPoints: number
-  currentStreak: number
-  longestStreak: number
-  completedTasks: number
+  totalPoints: number;
+  currentStreak: number;
+  longestStreak: number;
+  completedTasks: number;
   badges: {
-    id: string
-    unlockedAt: string
-  }[]
-  level: number
-  nextLevelPoints: number
+    id: string;
+    unlockedAt: string;
+  }[];
+  level: number;
+  nextLevelPoints: number;
 }
 
 interface LeaderboardUser {
-  uid: string
-  displayName: string
-  totalPoints: number
-  badges: number
-  level: number
-  rank: number
+  uid: string;
+  displayName: string;
+  totalPoints: number;
+  badges: number;
+  level: number;
+  rank: number;
 }
 
 const BADGES: Badge[] = [

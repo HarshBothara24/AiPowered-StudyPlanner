@@ -44,7 +44,11 @@ if (!getApps().length) {
     console.log('Firebase Admin initialized successfully with project:', projectId)
   } catch (error) {
     console.error('Firebase admin initialization error:', error)
-    throw new Error(`Failed to initialize Firebase Admin: ${error.message}`)
+    if (error instanceof Error) {
+      throw new Error(`Failed to initialize Firebase Admin: ${error.message}`)
+    } else {
+      throw new Error('Failed to initialize Firebase Admin: An unknown error occurred')
+    }
   }
 } else {
   app = getApps()[0]

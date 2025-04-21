@@ -54,20 +54,38 @@ export async function POST(request: Request) {
 
     // Save the schedule directly to the user's document in the schedules collection
     const scheduleRef = db.collection("schedules").doc(userId)
+    interface StudySession {
+      subject: string;
+      topic?: string;
+      startTime: string;
+      endTime: string;
+      duration: number;
+      notes?: string;
+    }
+
+    interface DaySchedule {
+      date: string;
+      sessions: StudySession[];
+    }
+
+    interface GeneratedSchedule {
+      schedule: DaySchedule[];
+    }
+
     await scheduleRef.set({
       userId,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      schedule: generatedSchedule.schedule.map(day => ({
-        date: day.date,
-        sessions: day.sessions.map(session => ({
-          subject: session.subject,
-          topic: session.topic || "General Study",
-          startTime: session.startTime,
-          endTime: session.endTime,
-          duration: session.duration,
-          notes: session.notes || `Study session for ${session.subject}`
-        }))
+      schedule: (generatedSchedule as GeneratedSchedule).schedule.map(day => ({
+      date: day.date,
+      sessions: day.sessions.map(session => ({
+        subject: session.subject,
+        topic: session.topic || "General Study",
+        startTime: session.startTime,
+        endTime: session.endTime,
+        duration: session.duration,
+        notes: session.notes || `Study session for ${session.subject}`
+      }))
       }))
     })
 

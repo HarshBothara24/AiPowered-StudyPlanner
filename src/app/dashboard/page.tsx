@@ -21,26 +21,18 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Schedule, StudyGroup, StudySession } from "@/types/types" // Import the types
 
-// StudySchedule Component
-interface Schedule {
-  schedule: {
-    date: string;
-    sessions: {
-      subject: string;
-      topic: string;
-      startTime: string;
-      endTime: string;
-      duration: number;
-      notes?: string;
-      completed?: boolean;
-    }[];
-  }[];
+// StudySchedule Component Props interface
+interface StudyScheduleProps {
+  schedule: Schedule;
+  onScheduleUpdate: (updatedSchedule: Schedule) => void;
 }
 
-function StudySchedule({ schedule, onScheduleUpdate }: { schedule: Schedule; onScheduleUpdate: (updatedSchedule: Schedule) => void }) {
+// StudySchedule Component
+function StudySchedule({ schedule, onScheduleUpdate }: StudyScheduleProps) {
   const [editingSession, setEditingSession] = useState<{ dayIndex: number; sessionIndex: number } | null>(null);
-  const [sessionFormData, setSessionFormData] = useState({
+  const [sessionFormData, setSessionFormData] = useState<StudySession>({
     subject: "",
     topic: "",
     startTime: "",
@@ -96,7 +88,7 @@ function StudySchedule({ schedule, onScheduleUpdate }: { schedule: Schedule; onS
     setEditingSession(null);
   }
 
-  const handleSessionFormChange = (e: { target: { name: any; value: any } }) => {
+  const handleSessionFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
     // If changing start or end time, calculate new duration
@@ -128,7 +120,7 @@ function StudySchedule({ schedule, onScheduleUpdate }: { schedule: Schedule; onS
     });
   }
 
-  const convertTimeToMinutes = (timeString: { split: (arg0: string) => { (): any; new(): any; map: { (arg0: NumberConstructor): [any, any]; new(): any } } }) => {
+  const convertTimeToMinutes = (timeString: string): number => {
     const [hours, minutes] = timeString.split(':').map(Number);
     return hours * 60 + minutes;
   }
@@ -139,7 +131,7 @@ function StudySchedule({ schedule, onScheduleUpdate }: { schedule: Schedule; onS
     const { dayIndex, sessionIndex } = editingSession;
     
     // Create a deep copy of the schedule
-    const updatedSchedule = JSON.parse(JSON.stringify(schedule));
+    const updatedSchedule = JSON.parse(JSON.stringify(schedule)) as Schedule;
     
     // Update the session data
     updatedSchedule.schedule[dayIndex].sessions[sessionIndex] = {
@@ -164,7 +156,7 @@ function StudySchedule({ schedule, onScheduleUpdate }: { schedule: Schedule; onS
     });
   }
   
-  const isToday = (dateString: string) => {
+  const isToday = (dateString: string): boolean => {
     const today = new Date().toISOString().split('T')[0]
     return dateString === today
   }
@@ -348,6 +340,7 @@ function StudySchedule({ schedule, onScheduleUpdate }: { schedule: Schedule; onS
     </>
   )
 }
+
 export default function DashboardPage() {
   const router = useRouter()
   const { user } = useAuth()
@@ -518,7 +511,7 @@ export default function DashboardPage() {
   // Get all upcoming meetings across all groups
   const upcomingMeetings = groups
     .flatMap(group => 
-      group.meetings?.map((meeting: { date: any; time: any }) => {
+      group.meetings?.map(meeting => {
         const meetingDateTime = new Date(`${meeting.date}T${meeting.time}`)
         return {
           ...meeting,
@@ -539,8 +532,8 @@ export default function DashboardPage() {
   const todayDateString = new Date().toISOString().split('T')[0];
   const todaySchedule = groups.flatMap(group =>
     group.schedule
-      .filter((session: { day: string }) => session.day.toLowerCase() === today.toLowerCase())
-      .map((session: any) => ({
+      .filter(session => session.day.toLowerCase() === today.toLowerCase())
+      .map(session => ({
         ...session,
         groupName: group.name
       }))

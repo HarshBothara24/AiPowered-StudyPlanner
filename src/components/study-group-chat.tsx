@@ -45,7 +45,8 @@ export function StudyGroupChat({ groupId }: StudyGroupChatProps) {
     try {
       await addGroupMessage(groupId, {
         userId: user.uid,
-        message: newMessage.trim()
+        message: newMessage.trim(),
+        type: "text"
       })
       setNewMessage("")
     } catch (error) {
