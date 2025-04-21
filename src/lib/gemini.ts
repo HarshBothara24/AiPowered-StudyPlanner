@@ -53,26 +53,27 @@ export async function generateStudySchedule(
   "startDate": "${startDate}",
   "endDate": "${endDate}",
   "subjects": ${JSON.stringify(subjects)},
+  "sessionDuration": ${duration},
   "syllabus": ${JSON.stringify(syllabus || [])},
   "existingSessions": ${JSON.stringify(existingSessions)},
   "preferences": {
-    "weekdayTimes": ["18:00-20:00"],
-    "weekendTimes": ["09:00-11:00"],
+    "weekdayTimes": ["18:00-${addHoursToTime("18:00", duration)}"],
+    "weekendTimes": ["09:00-${addHoursToTime("09:00", duration)}"],
     "weekendsPreferMorning": true,
     "timezone": "${preferences?.timezone || 'UTC'}"
   }
 }
 
 STRICT REQUIREMENTS:
-1. Generate EXACTLY ONE 2-hour session for EVERY DAY between startDate and endDate
-2. For weekdays (Mon-Fri): Schedule sessions in the evening (18:00-20:00)
-3. For weekends (Sat-Sun): Schedule sessions in the morning (09:00-11:00)
-4. Each session MUST have ALL these fields with DOUBLE QUOTES around property names:
-   - "subject": string
-   - "topic": string
+1. Generate EXACTLY ONE session for EVERY DAY between startDate and endDate
+2. ROTATE through ALL subjects evenly. Make sure you cycle through all subjects (${subjects.join(", ")}) before repeating
+3. For weekdays (Mon-Fri): Schedule sessions in the evening (18:00-${addHoursToTime("18:00", duration)})
+4. For weekends (Sat-Sun): Schedule sessions in the morning (09:00-${addHoursToTime("09:00", duration)})
+5. Each session MUST have ALL these fields with DOUBLE QUOTES around property names:
+   - "subject": string (one of: ${subjects.join(", ")})
    - "startTime": "HH:mm" format
    - "endTime": "HH:mm" format
-   - "duration": number (always 120)
+   - "duration": number (always ${duration * 60})
    - "notes": string with study tips
 
 Return ONLY a valid JSON object with this EXACT structure:
@@ -83,10 +84,9 @@ Return ONLY a valid JSON object with this EXACT structure:
       "sessions": [
         {
           "subject": "string",
-          "topic": "string",
           "startTime": "HH:mm",
           "endTime": "HH:mm",
-          "duration": 120,
+          "duration": ${duration * 60},
           "notes": "string with study tips"
         }
       ]
@@ -115,7 +115,6 @@ IMPORTANT: Ensure ALL property names are in DOUBLE QUOTES. The response must be 
 
       // Get default values for empty sessions
       const defaultSubject = subjects[0] || "General Study"
-      const defaultTopic = (syllabus?.[0]?.topics?.[0]) || defaultSubject
 
       // Validate and fix each schedule entry
       schedule.schedule = schedule.schedule.map((day: any) => {
@@ -126,28 +125,26 @@ IMPORTANT: Ensure ALL property names are in DOUBLE QUOTES. The response must be 
         // Determine if it's a weekend and set appropriate time
         const isWeekendDay = isWeekend(day.date)
         const defaultStartTime = isWeekendDay ? defaultWeekendTime : defaultWeekdayTime
-        const defaultEndTime = addHoursToTime(defaultStartTime, 2)
+        const defaultEndTime = addHoursToTime(defaultStartTime, duration)
 
         // Ensure each day has at least one session
         if (day.sessions.length === 0) {
           day.sessions = [{
             subject: defaultSubject,
-            topic: defaultTopic,
             startTime: defaultStartTime,
             endTime: defaultEndTime,
-            duration: 120,
-            notes: `Study session for ${defaultTopic}`
+            duration: duration * 60,
+            notes: `Study session for ${defaultSubject}`
           }]
         }
 
         // Validate and fix each session
         day.sessions = day.sessions.map((session: any) => ({
           subject: session.subject || defaultSubject,
-          topic: session.topic || defaultTopic,
           startTime: session.startTime || defaultStartTime,
           endTime: session.endTime || defaultEndTime,
-          duration: 120,
-          notes: session.notes || `Study session for ${session.topic || defaultTopic}`
+          duration: duration * 60,
+          notes: session.notes || `Study session for ${session.subject || defaultSubject}`
         }))
 
         return day
@@ -169,4 +166,4 @@ function addHoursToTime(time: string, hours: number): string {
   const [h, m] = time.split(':').map(Number)
   const newHours = (h + hours) % 24
   return `${newHours.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
-} 
+}
