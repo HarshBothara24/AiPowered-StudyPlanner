@@ -224,13 +224,13 @@ export default function GroupPage() {
   }
 
   // Enhanced function to get meetLink from meeting object
-  const getMeetingLink = (meeting) => {
+  const getMeetingLink = (meeting: Meeting): string | null => {
     // Try both properties - first meetLink, then hangoutLink
     return meeting.meetLink || meeting.hangoutLink || null;
   }
 
   // Improved function to validate and format meeting links
-  const formatMeetingLink = (meeting) => {
+  const formatMeetingLink = (meeting: Meeting) => {
     const link = getMeetingLink(meeting);
     
     if (!link || typeof link !== 'string' || link.trim() === '') {
@@ -247,7 +247,12 @@ export default function GroupPage() {
   }
 
   // Improved join meeting function
-  const handleJoinMeeting = (meeting, e) => {
+  interface HandleJoinMeetingProps {
+    meeting: Meeting;
+    e: React.MouseEvent<HTMLButtonElement>;
+  }
+
+  const handleJoinMeeting = ({ meeting, e }: HandleJoinMeetingProps) => {
     e.preventDefault();
     
     const meetLink = formatMeetingLink(meeting);
@@ -298,7 +303,7 @@ export default function GroupPage() {
   }
 
   // Copy meeting link to clipboard
-  const copyMeetingLink = (meeting) => {
+  const copyMeetingLink = (meeting: Meeting) => {
     const meetLink = formatMeetingLink(meeting);
     
     if (!meetLink) {
@@ -700,7 +705,7 @@ export default function GroupPage() {
                                   variant="outline" 
                                   size="sm" 
                                   className="flex items-center"
-                                  onClick={(e) => handleJoinMeeting(meeting, e)}
+                                  onClick={(e) => handleJoinMeeting({ meeting, e })}
                                 >
                                   <Video className="w-4 h-4 mr-1" />
                                   Join Meeting
@@ -738,7 +743,7 @@ export default function GroupPage() {
                           {meeting.title}
                         </div>
                         <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center">
-                          <Calendar className="w-4 h-4 mr-1" />
+                          <Calendar className="w-4 h-4 mr-1 " />
                           {meeting.date} at {meeting.time}
                         </div>
                         <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">

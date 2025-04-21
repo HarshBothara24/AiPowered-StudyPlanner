@@ -22,10 +22,15 @@ export default function BoardPage() {
   const { toast } = useToast()
   const [board, setBoard] = useState<Board | null>(null)
   const [loading, setLoading] = useState(true)
-  const [newTask, setNewTask] = useState({
+  const [newTask, setNewTask] = useState<{
+    title: string;
+    description: string;
+    priority: "low" | "medium" | "high";
+    dueDate: string;
+  }>({
     title: "",
     description: "",
-    priority: "medium" as const,
+    priority: "medium",
     dueDate: ""
   })
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -73,7 +78,7 @@ export default function BoardPage() {
         tasks: updatedTasks
       })
 
-      setBoard(prev => prev ? { ...prev, tasks: updatedTasks } : null)
+      setBoard(prev => prev ? { ...prev, tasks: updatedTasks as BoardTask[] } : null)
       setNewTask({
         title: "",
         description: "",
@@ -100,12 +105,12 @@ export default function BoardPage() {
 
     const tasks = Array.from(board.tasks)
     const [reorderedTask] = tasks.splice(result.source.index, 1)
-    reorderedTask.status = result.destination.droppableId
+    reorderedTask.status = result.destination.droppableId as "todo" | "in-progress" | "completed"
     tasks.splice(result.destination.index, 0, reorderedTask)
 
     try {
       await updateDoc(doc(db, "boards", board.id), { tasks })
-      setBoard(prev => prev ? { ...prev, tasks } : null)
+      setBoard(prev => prev ? { ...prev, tasks: tasks.map(task => ({ ...task, status: task.status as "todo" | "in-progress" | "completed" })) } : null)
     } catch (error) {
       console.error("Error updating task status:", error)
       toast({
@@ -128,7 +133,7 @@ export default function BoardPage() {
     
     try {
       await updateDoc(doc(db, "boards", board.id), { tasks: updatedTasks })
-      setBoard(prev => prev ? { ...prev, tasks: updatedTasks } : null)
+      setBoard(prev => prev ? { ...prev, tasks: updatedTasks.map(task => ({ ...task, status: task.status as "todo" | "in-progress" | "completed" })) } : null)
       toast({
         title: "Success",
         description: `Task moved to ${newStatus.replace("-", " ")}`

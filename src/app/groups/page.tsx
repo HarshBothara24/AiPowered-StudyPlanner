@@ -4,9 +4,14 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/contexts/auth-context"
 import { db } from "@/lib/firebase"
-import { collection, query, where, getDocs, doc, getDoc } from "firebase/firestore"
+import { collection, query, where, getDocs, doc, getDoc, Timestamp } from "firebase/firestore"
 import { createStudyGroup, joinStudyGroup } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { X } from "lucide-react"
 
 interface StudyGroup {
   id: string
@@ -30,6 +35,7 @@ export default function Groups() {
     maxMembers: 10,
     subjects: [] as string[]
   })
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { user } = useAuth()
   const router = useRouter()
 
@@ -73,21 +79,22 @@ export default function Groups() {
         resources: [],
         achievements: [],
         settings: {
-          visibility: "public",
+          visibility: "public" as "public" | "private",
           joinRequests: true,
           maxMembers: formData.maxMembers,
           studyFocus: formData.subjects,
-          difficultyLevel: "beginner"
+          difficultyLevel: "beginner" as "beginner" | "intermediate" | "advanced"
         },
         stats: {
           totalStudyTime: 0,
           activeMembers: 1,
           resourcesCount: 0,
-          lastActivity: new Date()
+          lastActivity: Timestamp.fromDate(new Date())
         }
       }
 
       const groupId = await createStudyGroup(newGroup)
+      setIsDialogOpen(false)
       router.push(`/groups/${groupId}`)
     } catch (error) {
       console.error("Error creating group:", error)
@@ -128,9 +135,100 @@ export default function Groups() {
         <div className="px-4 py-6 sm:px-0">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Study Groups</h2>
-            <Button onClick={() => document.getElementById("create-group-modal")?.showModal()}>
-              Create New Group
-            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>Create New Group</Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[550px] p-0 bg-black/90 border-gray-800 text-white">
+                <div className="relative p-6">
+                  <DialogHeader className="mb-4">
+                    <div className="flex justify-between items-center">
+                      <DialogTitle className="text-2xl font-semibold text-white">Create New Study Group</DialogTitle>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-8 w-8 text-gray-400 hover:text-white absolute top-2 right-2" 
+                        onClick={() => setIsDialogOpen(false)}
+                      >
+                        <X size={18} />
+                      </Button>
+                    </div>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Create a virtual study group for your classmates.
+                    </p>
+                  </DialogHeader>
+                  
+                  <form onSubmit={handleCreateGroup} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name" className="text-sm font-medium text-white">
+                        Group Name
+                      </Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        className="bg-black border border-gray-700 text-white placeholder:text-gray-500 focus:border-gray-600 focus:ring-gray-600"
+                        placeholder="Enter group name"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="description" className="text-sm font-medium text-white">
+                        Description
+                      </Label>
+                      <Textarea
+                        id="description"
+                        value={formData.description}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        className="bg-black border border-gray-700 text-white placeholder:text-gray-500 focus:border-gray-600 focus:ring-gray-600"
+                        placeholder="Describe the purpose and focus of the group"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="subjects" className="text-sm font-medium text-white">
+                        Subjects (comma-separated)
+                      </Label>
+                      <Input
+                        id="subjects"
+                        value={formData.subjects.join(", ")}
+                        onChange={(e) => setFormData({ ...formData, subjects: e.target.value.split(",").map(s => s.trim()) })}
+                        className="bg-black border border-gray-700 text-white placeholder:text-gray-500 focus:border-gray-600 focus:ring-gray-600"
+                        placeholder="e.g., Mathematics, Physics, Chemistry"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="maxMembers" className="text-sm font-medium text-white">
+                        Maximum Members
+                      </Label>
+                      <Input
+                        type="number"
+                        id="maxMembers"
+                        value={formData.maxMembers}
+                        onChange={(e) => setFormData({ ...formData, maxMembers: parseInt(e.target.value) })}
+                        min="2"
+                        max="20"
+                        className="bg-black border border-gray-700 text-white placeholder:text-gray-500 focus:border-gray-600 focus:ring-gray-600"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="pt-6">
+                      <Button 
+                        type="submit" 
+                        className="w-full bg-white hover:bg-gray-200 text-black font-medium py-2"
+                      >
+                        Create Group
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {error && (
@@ -193,84 +291,8 @@ export default function Groups() {
               </div>
             ))}
           </div>
-
-          {/* Create New Group Modal */}
-          <dialog id="create-group-modal" className="modal">
-            <div className="modal-box bg-white dark:bg-gray-800">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Create New Study Group</h3>
-              <form onSubmit={handleCreateGroup} className="space-y-4">
-                <div>
-                  <label htmlFor="group-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Group Name
-                  </label>
-                  <input
-                    type="text"
-                    id="group-name"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary focus:ring-primary sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="Enter group name"
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Description
-                  </label>
-                  <textarea
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={3}
-                    className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary focus:ring-primary sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="Describe the purpose and focus of the group"
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="subjects" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Subjects (comma-separated)
-                  </label>
-                  <input
-                    type="text"
-                    id="subjects"
-                    value={formData.subjects.join(", ")}
-                    onChange={(e) => setFormData({ ...formData, subjects: e.target.value.split(",").map(s => s.trim()) })}
-                    className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary focus:ring-primary sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    placeholder="e.g., Mathematics, Physics, Chemistry"
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="max-members" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Maximum Members
-                  </label>
-                  <input
-                    type="number"
-                    id="max-members"
-                    value={formData.maxMembers}
-                    onChange={(e) => setFormData({ ...formData, maxMembers: parseInt(e.target.value) })}
-                    min="2"
-                    max="20"
-                    className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary focus:ring-primary sm:text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    required
-                  />
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => document.getElementById("create-group-modal")?.close()}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit">Create Group</Button>
-                </div>
-              </form>
-            </div>
-          </dialog>
         </div>
       </div>
     </div>
   )
-} 
+}

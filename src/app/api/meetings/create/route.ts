@@ -101,17 +101,21 @@ export async function POST(request: Request) {
     // Send calendar invites to all attendees
     try {
       const calendar = await getGoogleCalendarClient()
-      await calendar.events.patch({
-        calendarId: 'primary',
-        eventId: calendarEvent.id,
-        requestBody: {
-          attendees: validAttendeeEmails.map(email => ({
-            email,
-            responseStatus: 'needsAction'
-          })),
+      if (calendarEvent.id) {
+        await calendar.events.patch({
+          calendarId: 'primary',
+          eventId: calendarEvent.id,
+          requestBody: {
+            attendees: validAttendeeEmails.map(email => ({
+              email,
+              responseStatus: 'needsAction'
+            }))
+          },
           sendUpdates: 'all'
-        }
-      })
+        })
+      } else {
+        console.error('Invalid calendar event ID:', calendarEvent.id)
+      }
       console.log('Calendar invites sent to all attendees')
     } catch (error) {
       console.error('Error sending calendar invites:', error)
