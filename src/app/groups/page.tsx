@@ -7,7 +7,7 @@ import { db } from "@/lib/firebase"
 import { collection, query, where, getDocs, doc, getDoc, Timestamp } from "firebase/firestore"
 import { createStudyGroup, joinStudyGroup } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -140,84 +140,86 @@ export default function Groups() {
                 <Button>Create New Group</Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[550px] p-0 bg-black/90 border-gray-800 text-white">
-                <div className="relative p-6">
-                  <DialogHeader className="mb-4">
+                <div className="p-6">
+                  <DialogHeader className="mb-6">
                     <div className="flex justify-between items-center">
-                      <DialogTitle className="text-2xl font-semibold text-white">Create New Study Group</DialogTitle>
+                      <DialogTitle className="text-2xl font-semibold">Schedule Meeting</DialogTitle>
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="h-8 w-8 text-gray-400 hover:text-white absolute top-2 right-2" 
+                        className="h-8 w-8 text-gray-400 hover:text-white" 
                         onClick={() => setIsDialogOpen(false)}
                       >
                         <X size={18} />
                       </Button>
                     </div>
-                    <p className="text-sm text-gray-400 mt-1">
-                      Create a virtual study group for your classmates.
-                    </p>
+                    <DialogDescription className="text-gray-400">
+                      Create a virtual meeting for your study group.
+                    </DialogDescription>
                   </DialogHeader>
                   
-                  <form onSubmit={handleCreateGroup} className="space-y-4">
+                  <form onSubmit={handleCreateGroup} className="space-y-6">
                     <div className="space-y-2">
-                      <Label htmlFor="name" className="text-sm font-medium text-white">
+                      <Label htmlFor="name" className="text-sm font-medium text-gray-300">
                         Group Name
                       </Label>
                       <Input
                         id="name"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        className="bg-black border border-gray-700 text-white placeholder:text-gray-500 focus:border-gray-600 focus:ring-gray-600"
-                        placeholder="Enter group name"
+                        className="bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 focus:border-gray-600 focus:ring-gray-600"
+                        placeholder="Weekly Study Session"
                         required
                       />
                     </div>
                     
                     <div className="space-y-2">
-                      <Label htmlFor="description" className="text-sm font-medium text-white">
+                      <Label htmlFor="description" className="text-sm font-medium text-gray-300">
                         Description
                       </Label>
                       <Textarea
                         id="description"
                         value={formData.description}
                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                        className="bg-black border border-gray-700 text-white placeholder:text-gray-500 focus:border-gray-600 focus:ring-gray-600"
+                        className="bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 focus:border-gray-600 focus:ring-gray-600"
                         placeholder="Describe the purpose and focus of the group"
                         required
                       />
                     </div>
                     
-                    <div className="space-y-2">
-                      <Label htmlFor="subjects" className="text-sm font-medium text-white">
-                        Subjects (comma-separated)
-                      </Label>
-                      <Input
-                        id="subjects"
-                        value={formData.subjects.join(", ")}
-                        onChange={(e) => setFormData({ ...formData, subjects: e.target.value.split(",").map(s => s.trim()) })}
-                        className="bg-black border border-gray-700 text-white placeholder:text-gray-500 focus:border-gray-600 focus:ring-gray-600"
-                        placeholder="e.g., Mathematics, Physics, Chemistry"
-                        required
-                      />
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="subjects" className="text-sm font-medium text-gray-300">
+                          Subjects
+                        </Label>
+                        <Input
+                          id="subjects"
+                          value={formData.subjects.join(", ")}
+                          onChange={(e) => setFormData({ ...formData, subjects: e.target.value.split(",").map(s => s.trim()) })}
+                          className="bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 focus:border-gray-600 focus:ring-gray-600"
+                          placeholder="Math, Physics"
+                          required
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="maxMembers" className="text-sm font-medium text-gray-300">
+                          Maximum Members
+                        </Label>
+                        <Input
+                          type="number"
+                          id="maxMembers"
+                          value={formData.maxMembers}
+                          onChange={(e) => setFormData({ ...formData, maxMembers: parseInt(e.target.value) })}
+                          min="2"
+                          max="20"
+                          className="bg-gray-800/50 border-gray-700 text-white placeholder:text-gray-500 focus:border-gray-600 focus:ring-gray-600"
+                          required
+                        />
+                      </div>
                     </div>
                     
-                    <div className="space-y-2">
-                      <Label htmlFor="maxMembers" className="text-sm font-medium text-white">
-                        Maximum Members
-                      </Label>
-                      <Input
-                        type="number"
-                        id="maxMembers"
-                        value={formData.maxMembers}
-                        onChange={(e) => setFormData({ ...formData, maxMembers: parseInt(e.target.value) })}
-                        min="2"
-                        max="20"
-                        className="bg-black border border-gray-700 text-white placeholder:text-gray-500 focus:border-gray-600 focus:ring-gray-600"
-                        required
-                      />
-                    </div>
-                    
-                    <div className="pt-6">
+                    <div className="pt-4">
                       <Button 
                         type="submit" 
                         className="w-full bg-white hover:bg-gray-200 text-black font-medium py-2"
