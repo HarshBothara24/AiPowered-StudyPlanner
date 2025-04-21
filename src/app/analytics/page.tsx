@@ -458,12 +458,14 @@ export default function AnalyticsPage() {
                         </ResponsiveContainer>
                       </div>
                       <div className="space-y-2 mt-6 px-2">
-                        {timeDistributionData.map((item) => (
-                          <div key={item.time} className="flex items-center justify-between text-gray-900 dark:text-gray-200">
-                            <span className="font-medium">{item.time}</span>
-                            <span>{item.hours} hours</span>
-                          </div>
-                        ))}
+                        {timeDistributionData.map((item) => 
+                          item && (
+                            <div key={item.time} className="flex items-center justify-between text-gray-900 dark:text-gray-200">
+                              <span className="font-medium">{item.time}</span>
+                              <span>{item.hours} hours</span>
+                            </div>
+                          )
+                        )}
                       </div>
                     </>
                   ) : (
