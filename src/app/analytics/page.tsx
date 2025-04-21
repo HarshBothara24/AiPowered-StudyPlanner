@@ -217,7 +217,7 @@ export default function AnalyticsPage() {
       }
     })
     .filter(Boolean) // Remove any null entries
-    .sort((a, b) => a.hourRaw - b.hourRaw) // Sort by hour
+    .sort((a, b) => (a?.hourRaw ?? 0) - (b?.hourRaw ?? 0)) // Sort by hour
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
