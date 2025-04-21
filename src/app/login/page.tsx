@@ -92,7 +92,7 @@ export default function Login() {
             </div>
 
             <div className="text-sm">
-              <a href="#" className="font-medium text-primary hover:text-primary/90">
+              <a href="#" className="font-medium text-gray-900 hover:text-gray-700">
                 Forgot your password?
               </a>
             </div>
@@ -101,7 +101,7 @@ export default function Login() {
           <div className="space-y-4">
             <Button
               type="submit"
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
             >
               Sign in
             </Button>
@@ -150,4 +150,4 @@ export default function Login() {
       </div>
     </div>
   )
-} 
+}
